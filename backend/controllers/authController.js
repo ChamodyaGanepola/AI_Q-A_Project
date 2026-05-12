@@ -1,10 +1,15 @@
 const { generateToken } = require("../utils/jwt");
 
 const login = (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, role } = req.body;
 
-  if (email === "admin@test.com" && password === "1234") {
-    const token = generateToken("user-1");
+  if (role === "admin" && email === "admin@test.com" && password === "1234") {
+    const token = generateToken("admin-1", "admin", "Admin");
+    return res.json({ token });
+  }
+
+  if (role === "user" && email === "user@test.com" && password === "1234") {
+    const token = generateToken("user-2", "user", "User");
     return res.json({ token });
   }
 

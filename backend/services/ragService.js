@@ -1,7 +1,7 @@
 const { index } = require("./pinecone.js");
 const { getEmbedding } = require("./embeddings.js");
 
-async function storeDocument(id, text) {
+async function storeDocument(id, text, metadata = {}) {
   const vector = await getEmbedding(text);
 
   await index.upsert([
@@ -10,6 +10,7 @@ async function storeDocument(id, text) {
       values: vector,
       metadata: {
         text: text,
+        ...metadata,
       },
     },
   ]);

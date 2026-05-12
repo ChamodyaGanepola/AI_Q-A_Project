@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("user");
+  const [error, setError] = useState("");
 
   const router = useRouter();
 
@@ -15,15 +17,16 @@ export default function LoginPage() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, role }),
     });
 
     const data = await res.json();
 
     if (data.token) {
       localStorage.setItem("token", data.token);
-
       router.push("/chat");
+    } else {
+      setError(data.message || "Login failed");
     }
   };
 
@@ -40,16 +43,25 @@ export default function LoginPage() {
           </h1>
 
           <p className="text-gray-500 mt-2">
-            Login to continue chatting
+            Login as admin or user to continue
           </p>
         </div>
 
         {/* Inputs */}
         <div className="flex flex-col gap-4">
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
+          >
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
 
           <input
             className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
             placeholder="Enter email"
+            value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
 
@@ -57,8 +69,11 @@ export default function LoginPage() {
             className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
             type="password"
             placeholder="Enter password"
+            value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+
+          {error && <p className="text-red-500 text-sm">{error}</p>}
 
           <button
             onClick={login}
