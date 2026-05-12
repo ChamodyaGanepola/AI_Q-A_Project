@@ -1,10 +1,12 @@
-import { Pinecone } from "@pinecone-database/pinecone";
-import dotenv from "dotenv";
+const { Pinecone } = require("@pinecone-database/pinecone");
+const dotenv = require("dotenv");
 
 dotenv.config();
 
-export const pinecone = new Pinecone({
+const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY,
 });
 
-export const index = pinecone.index(process.env.PINECONE_INDEX);
+const index = pinecone.index(process.env.PINECONE_INDEX);
+
+module.exports = { pinecone, index };
