@@ -1,19 +1,92 @@
 const { generateToken } = require("../utils/jwt");
+const User = require("../models/userModel");
+const bcrypt = require("bcrypt");
 
-const login = (req, res) => {
-  const { email, password, role } = req.body;
+const signup = async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
 
-  if (role === "admin" && email === "admin@test.com" && password === "1234") {
-    const token = generateToken("admin-1", "admin", "Admin");
-    return res.json({ token });
+    // Validate input
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email, and password are required" });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: "User already exists" });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create new user
+    const newUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role: role || "User",
+    });
+
+    await newUser.save();
+
+    // Generate token
+    const token = generateToken(newUser._id.toString(), newUser.role, newUser.name);
+
+    res.status(201).json({ 
+      message: "User created successfully",
+      token,
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+      },
+    });
+  } catch (error) {
+    console.error("Signup error:", error);
+    res.status(500).json({ error: "Signup failed" });
   }
-
-  if (role === "user" && email === "user@test.com" && password === "1234") {
-    const token = generateToken("user-2", "user", "User");
-    return res.json({ token });
-  }
-
-  return res.status(401).json({ message: "Invalid credentials" });
 };
 
-module.exports = { login };
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Generate token
+    const token = generateToken(user._id.toString(), user.role, user.name);
+
+    res.json({ 
+      message: "Login successful",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Login failed" });
+  }
+};
+
+module.exports = { signup, login };

@@ -4,24 +4,43 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+export default function SignupPage() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
+const [role, setRole] = useState("User");
   const router = useRouter();
 
-  const login = async () => {
-    setLoading(true);
+  const signup = async () => {
     setError("");
 
-    const res = await fetch("http://localhost:5000/api/auth/login", {
+    // Validation
+    if (!name || !email || !password || !confirmPassword) {
+      setError("All fields are required");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setLoading(true);
+
+    const res = await fetch("http://localhost:5000/api/auth/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ name, email, password, role }),
     });
 
     const data = await res.json();
@@ -31,7 +50,7 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(data.user));
       router.push("/chat");
     } else {
-      setError(data.error || data.message || "Login failed");
+      setError(data.error || data.message || "Signup failed");
     }
 
     setLoading(false);
@@ -39,30 +58,44 @@ export default function LoginPage() {
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
-      login();
+      signup();
     }
   };
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      {/* Login Card */}
+      {/* Signup Card */}
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
         {/* Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-black">Welcome Back</h1>
-          <p className="text-gray-500 mt-2">Login to your account to continue</p>
+          <h1 className="text-3xl font-bold text-black">Create Account</h1>
+          <p className="text-gray-500 mt-2">Sign up to get started</p>
         </div>
 
         {/* Inputs */}
         <div className="flex flex-col gap-4">
           <input
             className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
+            placeholder="Enter your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+
+          <input
+            className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
             placeholder="Enter email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onKeyPress={handleKeyPress}
           />
+          <select
+  className="border border-gray-300 rounded-xl px-4 py-3 text-black"
+  value={role}
+  onChange={(e) => setRole(e.target.value)}
+>
+  <option value="User">User</option>
+  <option value="Admin">Admin</option>
+</select>
 
           <input
             className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
@@ -73,21 +106,30 @@ export default function LoginPage() {
             onKeyPress={handleKeyPress}
           />
 
+          <input
+            className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
+            type="password"
+            placeholder="Confirm password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            onKeyPress={handleKeyPress}
+          />
+
           {error && <p className="text-red-500 text-sm">{error}</p>}
 
           <button
-            onClick={login}
+            onClick={signup}
             disabled={loading}
             className="bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition font-medium disabled:opacity-50"
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading ? "Creating account..." : "Sign Up"}
           </button>
 
           <div className="text-center mt-4">
             <p className="text-gray-600 text-sm">
-              Don't have an account?{" "}
-              <Link href="/signup" className="text-black font-semibold hover:underline">
-                Sign up
+              Already have an account?{" "}
+              <Link href="/login" className="text-black font-semibold hover:underline">
+                Login
               </Link>
             </p>
           </div>

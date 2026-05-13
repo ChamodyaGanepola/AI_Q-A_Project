@@ -1,6 +1,6 @@
 const express = require("express");
 const multer = require("multer");
-const { chat } = require("../controllers/chatController");
+const { chat, getChatHistory } = require("../controllers/chatController");
 const { storeDocument } = require("../services/ragService");
 const { processDocument } = require("../services/documentService");
 const authMiddleware = require("../middlware/authMiddlware");
@@ -11,6 +11,7 @@ const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
 router.post("/", authMiddleware, chat);
+router.get("/history", authMiddleware, getChatHistory);
 
 router.post("/store", authMiddleware, async (req, res) => {
   const { id, text } = req.body;
