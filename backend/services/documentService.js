@@ -21,10 +21,19 @@ async function processDocument(filePath, fileName) {
   // Split text into chunks
   const chunks = await chunkText(text);
 
+  // Filter out empty chunks
+  const validChunks = chunks.filter(chunk => chunk.trim() !== '');
+
+  console.log(`Processing ${validChunks.length} chunks from ${fileName}`);
+
   // Store each chunk
-  for (let i = 0; i < chunks.length; i++) {
+  for (let i = 0; i < validChunks.length; i++) {
     const chunkId = `${fileName}_chunk_${i}`;
-    await storeDocument(chunkId, chunks[i], { source: fileName });
+    try {
+      await storeDocument(chunkId, validChunks[i], { source: fileName });
+    } catch (error) {
+      console.error(`Error storing chunk ${chunkId}:`, error.message);
+    }
   }
 
   // Clean up file

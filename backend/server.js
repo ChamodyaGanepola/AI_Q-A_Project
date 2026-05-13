@@ -5,7 +5,7 @@ const authRoutes = require("./routes/authRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 
 const app = express();
-console.log("OPENAI KEY:", process.env.OPENAI_API_KEY);
+
 app.use(cors());
 app.use(express.json());
 

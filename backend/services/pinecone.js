@@ -1,7 +1,5 @@
 const { Pinecone } = require("@pinecone-database/pinecone");
-const dotenv = require("dotenv");
-
-dotenv.config();
+require("dotenv").config();
 
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY,
@@ -9,4 +7,4 @@ const pinecone = new Pinecone({
 
 const index = pinecone.index(process.env.PINECONE_INDEX);
 
-module.exports = { pinecone, index };
+module.exports = { index };

@@ -1,31 +1,40 @@
-const { index } = require("./pinecone.js");
-const { getEmbedding } = require("./embeddings.js");
+const { index } = require("./pinecone");
+const { getEmbedding } = require("./embeddings");
 
 async function storeDocument(id, text, metadata = {}) {
+  if (!text || text.trim() === "") return;
+
   const vector = await getEmbedding(text);
+
+  console.log("Uploading:", id);
 
   await index.upsert([
     {
-      id: id,
+      id,
       values: vector,
       metadata: {
-        text: text,
+        text,
         ...metadata,
       },
     },
   ]);
+
+  console.log("Stored successfully");
 }
 
 async function searchDocs(query) {
   const vector = await getEmbedding(query);
 
-  const result = await index.query({
+  const results = await index.query({
     vector,
     topK: 3,
     includeMetadata: true,
   });
 
-  return result.matches;
+  return results.matches;
 }
 
-module.exports = { storeDocument, searchDocs };
+module.exports = {
+  storeDocument,
+  searchDocs,
+};

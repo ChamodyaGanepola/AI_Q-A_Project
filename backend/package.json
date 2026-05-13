@@ -13,7 +13,7 @@
   "type": "commonjs",
   "dependencies": {
     "@langchain/textsplitters": "^1.0.1",
-    "@pinecone-database/pinecone": "^7.2.0",
+    "@pinecone-database/pinecone": "^3.0.2",
     "axios": "^1.16.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
@@ -24,6 +24,6 @@
     "multer": "^2.1.1",
     "nodemon": "^3.1.14",
     "openai": "^6.37.0",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^1.1.1"
   }
 }
