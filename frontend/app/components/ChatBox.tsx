@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import LogoutButton from "./LogoutButton";
 import UserProfile from "./userProfile";
+import { useNotification } from "./NotificationContext";
 
 interface Message {
   id: string;
@@ -27,6 +28,7 @@ export default function ChatBox() {
     name: string;
     role: string;
   } | null>(null);
+  const { notify } = useNotification();
 
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -141,6 +143,12 @@ export default function ChatBox() {
 
       const data = await res.json();
 
+      if (!res.ok) {
+        const errorMessage = data.error || "Failed to send message";
+        notify(errorMessage, "error");
+        return;
+      }
+
       const aiMessage: Message = {
         id: `temp-ai-${Date.now()}`,
         role: "ai",
@@ -151,7 +159,7 @@ export default function ChatBox() {
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error("Failed to send message", error);
-      // Optionally remove the user message or show error
+      notify("Unable to send message. Please try again.", "error");
     }
   };
 
@@ -177,8 +185,11 @@ export default function ChatBox() {
 
     if (res.ok) {
       setStatus("Document uploaded successfully.");
+      notify("Document uploaded successfully", "success");
     } else {
-      setStatus(data.error || "Upload failed.");
+      const errorMessage = data.error || "Upload failed.";
+      setStatus(errorMessage);
+      notify(errorMessage, "error");
     }
   };
 

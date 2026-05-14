@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useNotification } from "../components/NotificationContext";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
+  const { notify } = useNotification();
 
   const login = async () => {
     setLoading(true);
@@ -29,9 +31,12 @@ export default function LoginPage() {
     if (data.token && data.user) {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      notify("Login successful", "success");
       router.push("/chat");
     } else {
-      setError(data.error || data.message || "Login failed");
+      const errorMessage = data.error || data.message || "Login failed";
+      setError(errorMessage);
+      notify(errorMessage, "error");
     }
 
     setLoading(false);
