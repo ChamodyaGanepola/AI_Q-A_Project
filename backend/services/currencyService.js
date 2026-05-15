@@ -1,5 +1,88 @@
 const axios = require("axios");
 
+const BASE_URL =
+  process.env.CURRENCYLAYER_BASE_URL ||
+  "https://api.currencylayer.com";
+
+const ACCESS_KEY = process.env.CURRENCYLAYER_ACCESS_KEY;
+
+// --- Generic CurrencyLayer API caller ---
+async function callCurrencyLayer(endpoint, params = {}) {
+  if (!ACCESS_KEY) {
+    throw new Error("CurrencyLayer API key is not configured.");
+  }
+
+  const url = `${BASE_URL}/${endpoint}`;
+
+  const response = await axios.get(url, {
+    params: {
+      access_key: ACCESS_KEY,
+      ...params,
+    },
+  });
+
+  return response.data;
+}
+
+// --- Live exchange rates ---
+async function getLiveRates() {
+  return callCurrencyLayer("live");
+}
+
+// --- Historical rates ---
+async function getHistoricalRates(date) {
+  if (!date) {
+    throw new Error("Date is required.");
+  }
+
+  return callCurrencyLayer("historical", { date });
+}
+
+// --- Timeframe rates ---
+async function getTimeframeRates(start_date, end_date) {
+  if (!start_date || !end_date) {
+    throw new Error("Start date and end date are required.");
+  }
+
+  return callCurrencyLayer("timeframe", {
+    start_date,
+    end_date,
+  });
+}
+
+// --- Currency change data ---
+async function getChangeRates(currencies) {
+  return callCurrencyLayer(
+    "change",
+    currencies ? { currencies } : {}
+  );
+}
+
+// --- Currency conversion ---
+async function convertCurrency(from, to, amount = 1) {
+  if (!from || !to) {
+    throw new Error("Both from and to currency codes are required.");
+  }
+
+  return callCurrencyLayer("convert", {
+    from,
+    to,
+    amount,
+  });
+}
+
+module.exports = {
+  getLiveRates,
+  getHistoricalRates,
+  getTimeframeRates,
+  getChangeRates,
+  convertCurrency,
+};
+
+
+
+/*const axios = require("axios");
+
 const BASE_URL = process.env.CURRENCYLAYER_BASE_URL || "https://api.currencylayer.com";
 const ACCESS_KEY = process.env.CURRENCYLAYER_ACCESS_KEY;
 //This is the non-RAG, live Web API path.
@@ -311,3 +394,4 @@ module.exports = {
   convertCurrency,
   parseCurrencyQuery,
 };
+*/
