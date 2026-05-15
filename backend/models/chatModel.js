@@ -16,7 +16,7 @@ const chatSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ["documents", "general", "currency", "currency_error"],
+    enum: ["documents", "general", "currency", "currency_error", "no_match"],
     default: "general",
   },
   documentsUsed: {
