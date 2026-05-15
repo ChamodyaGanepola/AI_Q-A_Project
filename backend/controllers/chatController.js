@@ -1,5 +1,6 @@
 const { searchDocs } = require("../services/ragService");
-const { openai } = require("../services/openaiService");
+const { openai, classifyIntent } = require("../services/openaiService");
+const { isCurrencyQuestion, buildCurrencyReply } = require("../services/currencyService");
 const Chat = require("../models/chatModel");
 
 const chat = async (req, res) => {
@@ -16,7 +17,7 @@ const chat = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(5)
       .select('message reply');
-    
+
     const conversationHistory = chatHistory
       .reverse()
       .map(chat => `User: ${chat.message}\nAssistant: ${chat.reply}`)
@@ -24,33 +25,49 @@ const chat = async (req, res) => {
 
     console.log("Previous conversation context loaded:", conversationHistory.substring(0, 200) + "...");
 
-    // Check if message is a greeting FIRST
-    const greetings = ['hi', 'hello', 'hey', 'greetings', 'howdy', 'what can you do', 'how can you assist'];
-    const isGreeting = greetings.some(g => message.toLowerCase().includes(g));
+    let intentResult;
+    try {
+      intentResult = classifyIntent(message);
+    } catch (err) {
+      console.error("Intent classification failed:", err.message || err);
+      intentResult = { intent: null, reason: "fallback" };
+    }
+    const intent = intentResult.intent ? String(intentResult.intent).toLowerCase() : null;
+    console.log("Detected intent:", intent, "reason:", intentResult.reason);
 
     let answer;
     let source;
     let documentsUsed;
 
-    if (isGreeting) {
-      // Greeting detected: Allow general friendly response without searching documents
-      console.log("Greeting detected, providing general assistance message");
-      
-      answer = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a friendly and helpful assistant. Provide a brief, welcoming response about how you can assist the user.",
-          },
-          {
-            role: "user",
-            content: message,
-          },
-        ],
-      });
-      source = "general";
-      documentsUsed = 0;
+    if (intent === "currency_api" || isCurrencyQuestion(message)) {
+      console.log("Currency intent detected, using currency service");
+      try {
+        const currencyReply = await buildCurrencyReply(message);
+        answer = {
+          choices: [
+            {
+              message: {
+                content: currencyReply,
+              },
+            },
+          ],
+        };
+        source = "currency";
+        documentsUsed = 0;
+      } catch (currencyError) {
+        console.error("Currency service error:", currencyError.message);
+        answer = {
+          choices: [
+            {
+              message: {
+                content: `Currency service error: ${currencyError.message}`,
+              },
+            },
+          ],
+        };
+        source = "currency_error";
+        documentsUsed = 0;
+      }
     } else {
       // Not a greeting: Search for relevant documents
       const matches = await searchDocs(message);
@@ -66,7 +83,7 @@ const chat = async (req, res) => {
       if (relevantMatches.length > 0) {
         // Document-based question: Answer only from Pinecone knowledge docs
         console.log(`Found ${relevantMatches.length} relevant documents`);
-        
+
         const context = relevantMatches
           .map(m => m.metadata.text)
           .join("\n");
@@ -95,12 +112,12 @@ ${conversationHistory ? `Previous conversation:\n${conversationHistory}` : ''}`,
       } else {
         // No relevant documents found: Return unable to answer message
         console.log("No relevant documents found, unable to answer the question");
-        
+
         answer = {
           choices: [
             {
               message: {
-                content: "I can't answer your question"
+                content: "I can't answer your question. I can only answer from documents or currency-related APIs."
               }
             }
           ]
@@ -124,7 +141,7 @@ ${conversationHistory ? `Previous conversation:\n${conversationHistory}` : ''}`,
     await chatMessage.save();
     console.log("Chat message saved to database");
 
-    res.json({ 
+    res.json({
       reply: replyText,
       source,
       documentsUsed,
@@ -164,15 +181,15 @@ const getChatHistory = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = parseInt(req.query.offset) || 0;
 
-    // Get chat messages for the user, sorted by oldest first for chat flow
+    // Get chat messages for the user, sorted by newest first for pagination
     const chatHistory = await Chat.find({ userId })
-      .sort({ createdAt: 1 })
+      .sort({ createdAt: -1 })
       .skip(offset)
       .limit(limit);
 
     const totalCount = await Chat.countDocuments({ userId });
 
-    res.json({ 
+    res.json({
       chatHistory,
       totalCount,
       hasMore: offset + limit < totalCount,

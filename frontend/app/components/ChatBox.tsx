@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import LogoutButton from "./LogoutButton";
 import UserProfile from "./userProfile";
 import { useNotification } from "./NotificationContext";
+import { API_URL } from "../lib/api";
 
 interface Message {
   id: string;
@@ -55,7 +56,7 @@ export default function ChatBox() {
 
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/chat/history?limit=20&offset=${currentOffset}`, {
+const res = await fetch(`${API_URL}/api/chat/history?limit=20&offset=${currentOffset}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -80,9 +81,11 @@ export default function ChatBox() {
         });
 
         if (append) {
-          setMessages(prev => [...newMessages, ...prev]);
+          // For scroll up: newMessages are older messages sorted newest first, reverse to oldest first, prepend
+          setMessages(prev => [...newMessages.reverse(), ...prev]);
         } else {
-          setMessages(newMessages);
+          // Initial load: newMessages are newest first, reverse to oldest first
+          setMessages(newMessages.reverse());
         }
         setHasMore(data.hasMore);
         setOffset(currentOffset + 20);
@@ -132,7 +135,7 @@ export default function ChatBox() {
     setInput("");
 
     try {
-      const res = await fetch("http://localhost:5000/api/chat", {
+      const res = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -173,7 +176,7 @@ export default function ChatBox() {
     const formData = new FormData();
     formData.append("document", file);
 
-    const res = await fetch("http://localhost:5000/api/chat/upload", {
+    const res = await fetch(`${API_URL}/api/chat/upload`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
