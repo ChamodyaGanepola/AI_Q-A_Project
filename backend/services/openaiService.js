@@ -1,6 +1,13 @@
-require("dotenv").config();
+/*require("dotenv").config();
 
 const OpenAI = require("openai");
+
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  timeout: 30000,
+});
+
 const {
   getLiveRates,
   getHistoricalRates,
@@ -8,12 +15,6 @@ const {
   getChangeRates,
   convertCurrency,
 } = require("./currencyService");
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 30000,
-});
-
 // --- Currency tools definition for OpenAI Function Calling ---
 const CURRENCY_TOOLS = [
   {
@@ -112,6 +113,7 @@ async function executeCurrencyTool(name, args) {
  * GPT will call a tool if it thinks it's needed, otherwise answers directly.
  * Returns { reply, usedTool }
  */
+/*
 async function getAIResponseWithTools(messages) {
   // First call — GPT decides if a tool is needed
   const response = await openai.chat.completions.create({
@@ -171,4 +173,5 @@ const getAIResponse = async (message) => {
   return response.choices[0].message.content;
 };
 
-module.exports = { openai, getAIResponse, getAIResponseWithTools };
+module.exports = { openai};
+*/

@@ -1,6 +1,6 @@
 // controllers/currencyController.js
 
-const { convertCurrency } = require("../services/currencyService");
+/*const { convertCurrency } = require("../services/currencyService");
 
 const getCurrencyData = async (req, res) => {
   try {
@@ -52,6 +52,8 @@ const getCurrencyData = async (req, res) => {
 };
 
 module.exports = { getCurrencyData };
+
+
 /*const {
 
   convertCurrency,
