@@ -26,10 +26,9 @@ router.post("/store", authMiddleware, async (req, res) => {
 // New route for uploading documents
 router.post("/upload", authMiddleware, upload.single('document'), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+    if (req.user.role?.toLowerCase() !== "admin") {
+  return res.status(403).json({ error: 'Admin access required' });
+}
     const file = req.file;
     if (!file) {
       return res.status(400).json({ error: 'No file uploaded' });

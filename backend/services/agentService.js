@@ -19,7 +19,7 @@ async function runAgent(messages) {
   const latestMessage =
     messages[messages.length - 1]?.content || "";
 
-  // ✅ Allow greetings only
+  //  Allow greetings only
   if (isGreeting(latestMessage)) {
     return "Hello! How can I help you today?";
   }
@@ -34,7 +34,7 @@ async function runAgent(messages) {
 
   const message = response.choices[0].message;
 
-  // ❌ No tool used = BLOCK
+  //  No tool used = BLOCK
   if (!message.tool_calls?.length) {
     return "I could not find this information in the uploaded documents.";
   }
