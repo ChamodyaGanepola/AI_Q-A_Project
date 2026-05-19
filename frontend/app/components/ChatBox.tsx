@@ -6,6 +6,8 @@ import UserProfile from "./userProfile";
 import { useNotification } from "./NotificationContext";
 import { API_URL } from "../lib/api";
 import TypingDots from "./TypingDots";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Message {
   id: string;
@@ -272,19 +274,19 @@ export default function ChatBox() {
               {messages.map((m) => (
                 <div
                   key={m.id}
-                  className={`flex ${
-                    m.role === "user" ? "justify-end" : "justify-start"
-                  }`}
+                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
+                    }`}
                 >
                   <div className="max-w-[70%]">
                     <div
-                      className={`px-4 py-3 rounded-2xl text-sm shadow ${
-                        m.role === "user"
+                      className={`px-4 py-3 rounded-2xl text-sm shadow ${m.role === "user"
                           ? "bg-black text-white"
                           : "bg-white text-black"
-                      }`}
+                        }`}
                     >
-                      {m.content}
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {m.content}
+                      </ReactMarkdown>
                     </div>
                     <span className="text-xs text-gray-500">
                       {m.timestamp}
@@ -309,6 +311,11 @@ export default function ChatBox() {
                 value={input ?? ""}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type message..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    sendMessage();
+                  }
+                }}
               />
 
               <button
