@@ -1,58 +1,68 @@
 const Chat = require("../models/chatModel");
-const { runAgent } = require("../services/agentService");
+const { runSystem } = require("../services/systemAgent");
+
+
+
+const isGreeting = (text) =>
+  /^(hi|hello|hey)\b/i.test(text.trim());
 
 const chat = async (req, res) => {
   try {
     const { message } = req.body;
     const userId = req.user.userId;
 
-    // Last messages
     const history = await Chat.find({ userId })
       .sort({ createdAt: -1 })
       .limit(10);
 
     const messages = [
-      {
-  role: "system",
-  content: `
-You are a document-based AI assistant.
-
-You MUST use the search_knowledge_base tool when answering document-related questions.
-
-If the tool returns no results, say:
-"I could not find this information in the uploaded documents."
-
-You may use chat history when relevant.
-`
-},
       ...history.reverse().flatMap((c) => [
         { role: "user", content: c.message },
         { role: "assistant", content: c.reply },
       ]),
-
-      {
-        role: "user",
-        content: message,
-      },
+      { role: "user", content: message },
     ];
 
-    const reply = await runAgent(messages);
+    if (isGreeting(message)) {
+      let reply = "Hello! How can I help you today?";
+
+      if (/how are you/i.test(message)) {
+        reply = "I'm doing well! How can I help you today?";
+      }
+
+      if (/thank you|thanks/i.test(message)) {
+        reply = "You're welcome!";
+      }
+
+      if (/who are you/i.test(message)) {
+        reply =
+          "I'm your AI assistant. I can help with documents, currency conversions, and more.";
+      }
+      await Chat.create({ userId, message, reply });
+      return res.json({ reply });
+    }
+
+    const rawReply = await runSystem(message, messages);
+
+    const normalizedReply =
+      typeof rawReply === "string"
+        ? rawReply
+        : rawReply?.answer || JSON.stringify(rawReply);
 
     await Chat.create({
       userId,
       message,
-      reply,
+      reply: normalizedReply,
     });
 
-    res.json({ reply });
-
+    res.json({ reply: normalizedReply });
   } catch (err) {
     console.error(err);
-    res.status(500).json({
-      error: err.message,
-    });
+    res.status(500).json({ error: err.message });
   }
 };
+
+
 
 
 const getChatHistory = async (req, res) => {
@@ -66,10 +76,10 @@ const getChatHistory = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = parseInt(req.query.offset) || 0;
 
-  const chatHistory = await Chat.find({ userId })
-  .sort({ createdAt: -1 })
-  .skip(offset)
-  .limit(limit);
+    const chatHistory = await Chat.find({ userId })
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(limit);
     const totalCount = await Chat.countDocuments({ userId });
 
     res.json({
