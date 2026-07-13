@@ -1,4 +1,4 @@
-# My Expense Tracker App
+# Q and A app using RAG  App
 
 Demo of my  Q and A app using RAG 
 
