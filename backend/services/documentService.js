@@ -1,43 +1,43 @@
-const fs = require('fs');
-const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
-const { chunkText } = require('../utils/chunkText');
-const { storeDocument } = require('./ragService');
+const fs = require("fs");
+const pdfParse = require("pdf-parse");
+const mammoth = require("mammoth");
+const { chunkText } = require("../utils/chunkText");
+const { storeDocuments } = require("./ragService");
 
-async function processDocument(filePath, fileName) {
-  let text = '';
-
-  if (fileName.endsWith('.pdf')) {
+async function extractText(filePath, fileName) {
+  if (fileName.toLowerCase().endsWith(".pdf")) {
     const dataBuffer = fs.readFileSync(filePath);
     const data = await pdfParse(dataBuffer);
-    text = data.text;
-  } else if (fileName.endsWith('.docx')) {
-    const result = await mammoth.extractRawText({ path: filePath });
-    text = result.value;
-  } else {
-    throw new Error('Unsupported file type');
+    return data.text || "";
   }
 
-  // Split text into chunks
-  const chunks = await chunkText(text);
+  if (fileName.toLowerCase().endsWith(".docx")) {
+    const result = await mammoth.extractRawText({ path: filePath });
+    return result.value || "";
+  }
 
-  // Filter out empty chunks
-  const validChunks = chunks.filter(chunk => chunk.trim() !== '');
+  throw new Error("Unsupported file type");
+}
 
-  console.log(`Processing ${validChunks.length} chunks from ${fileName}`);
+async function processDocument(filePath, fileName) {
+  try {
+    const text = await extractText(filePath, fileName);
+    const chunks = await chunkText(text);
+    const validChunks = chunks.filter((chunk) => chunk.trim() !== "");
 
-  // Store each chunk
-  for (let i = 0; i < validChunks.length; i++) {
-    const chunkId = `${fileName}_chunk_${i}`;
-    try {
-      await storeDocument(chunkId, validChunks[i], { source: fileName });
-    } catch (error) {
-      console.error(`Error storing chunk ${chunkId}:`, error.message);
+    const payload = validChunks.map((chunk, i) => ({
+      id: `${fileName}_chunk_${i}`,
+      text: chunk,
+      metadata: { source: fileName },
+    }));
+
+    const stored = await storeDocuments(payload);
+    return { chunks: validChunks.length, stored };
+  } finally {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
     }
   }
-
-  // Clean up file
-  fs.unlinkSync(filePath);
 }
 
 module.exports = { processDocument };

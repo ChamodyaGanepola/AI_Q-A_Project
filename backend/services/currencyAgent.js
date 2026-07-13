@@ -1,12 +1,8 @@
-const OpenAI = require("openai");
+const { openai } = require("./openaiClient");
 const {
   convertCurrency,
   convertHistoricalCurrency,
 } = require("./currencyService");
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 async function runCurrencyAgent({
   currencyQuery,

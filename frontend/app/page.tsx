@@ -8,16 +8,22 @@ export default function Home() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
-      router.push("/chat");
-    } else {
-      router.push("/login");
-    }
+    router.replace(token ? "/chat" : "/login");
   }, [router]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <p className="text-gray-500">Loading...</p>
+    <div className="app-shell">
+      <div className="relative z-10 flex flex-col items-center gap-3 text-[#9fe8db]">
+        <div className="brand-mark" aria-hidden>
+          Q
+        </div>
+        <div className="flex gap-1.5" aria-hidden>
+          <span className="w-2 h-2 rounded-full bg-[#14b8a6] loading-dot" />
+          <span className="w-2 h-2 rounded-full bg-[#14b8a6] loading-dot [animation-delay:0.2s]" />
+          <span className="w-2 h-2 rounded-full bg-[#14b8a6] loading-dot [animation-delay:0.4s]" />
+        </div>
+        <p className="text-sm text-[#c7ebe4]">Loading Q&A with AI…</p>
+      </div>
     </div>
   );
 }

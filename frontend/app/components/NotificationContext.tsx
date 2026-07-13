@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, ReactNode } from "react";
 
 export type NotificationType = "success" | "error" | "info";
 
@@ -19,33 +19,48 @@ const NotificationContext = createContext<NotificationContextValue | undefined>(
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
-  const notify = (message: string, type: NotificationType = "info") => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const notification = { id, message, type };
+  const dismiss = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((item) => item.id !== id));
+  }, []);
 
-    setNotifications((prev) => [...prev, notification]);
+  const notify = useCallback((message: string, type: NotificationType = "info") => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setNotifications((prev) => [...prev.slice(-4), { id, message, type }]);
 
     window.setTimeout(() => {
       setNotifications((prev) => prev.filter((item) => item.id !== id));
     }, 3500);
-  };
+  }, []);
 
   return (
     <NotificationContext.Provider value={{ notify }}>
       {children}
-      <div className="fixed right-4 top-4 z-50 flex flex-col gap-3">
+      <div
+        className="fixed right-4 top-4 z-50 flex flex-col gap-2 max-w-[min(100vw-2rem,22rem)]"
+        aria-live="polite"
+        aria-relevant="additions"
+      >
         {notifications.map((notification) => (
           <div
             key={notification.id}
-            className={`min-w-[240px] rounded-2xl border px-4 py-3 shadow-lg text-sm font-medium transition duration-200 ${
+            className={`toast-enter flex items-start justify-between gap-3 min-w-[240px] rounded-xl border px-4 py-3 shadow-lg text-sm font-medium ${
               notification.type === "success"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-900"
                 : notification.type === "error"
-                ? "bg-rose-50 border-rose-200 text-rose-900"
-                : "bg-sky-50 border-sky-200 text-sky-900"
+                  ? "bg-rose-50 border-rose-200 text-rose-900"
+                  : "bg-teal-50 border-teal-200 text-teal-950"
             }`}
+            role="status"
           >
-            {notification.message}
+            <span className="leading-snug">{notification.message}</span>
+            <button
+              type="button"
+              onClick={() => dismiss(notification.id)}
+              className="shrink-0 text-current/60 hover:text-current text-xs font-semibold px-1"
+              aria-label="Dismiss notification"
+            >
+              ✕
+            </button>
           </div>
         ))}
       </div>

@@ -1,46 +1,58 @@
 const express = require("express");
 const multer = require("multer");
-const { chat, getChatHistory } = require("../controllers/chatController");
-//const { getCurrencyData } = require("../controllers/currencyController");
+const path = require("path");
+const {
+  chat,
+  getChatHistory,
+  uploadDocument,
+} = require("../controllers/chatController");
 const { storeDocument } = require("../services/ragService");
-const { processDocument } = require("../services/documentService");
 const authMiddleware = require("../middlware/authMiddlware");
 
 const router = express.Router();
 
-// Configure multer for file uploads
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({
+  dest: "uploads/",
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === ".pdf" || ext === ".docx") {
+      cb(null, true);
+      return;
+    }
+    cb(new Error("Only PDF and DOCX files are allowed"));
+  },
+});
 
 router.post("/", authMiddleware, chat);
 router.get("/history", authMiddleware, getChatHistory);
-//router.post("/currency", authMiddleware, getCurrencyData);
 
 router.post("/store", authMiddleware, async (req, res) => {
-  const { id, text } = req.body;
-
-  await storeDocument(id, text);
-
-  res.json({ success: true });
-});
-
-// New route for uploading documents
-router.post("/upload", authMiddleware, upload.single('document'), async (req, res) => {
   try {
-    if (req.user.role?.toLowerCase() !== "admin") {
-  return res.status(403).json({ error: 'Admin access required' });
-}
-    const file = req.file;
-    if (!file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+    const { id, text } = req.body;
+    if (!id || !text) {
+      return res.status(400).json({ error: "id and text are required" });
     }
-
-    await processDocument(file.path, file.originalname);
-
-    res.json({ success: true, message: 'Document processed and stored' });
+    await storeDocument(id, text);
+    res.json({ success: true });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to process document' });
+    res.status(500).json({ error: "Failed to store document" });
   }
 });
+
+router.post(
+  "/upload",
+  authMiddleware,
+  (req, res, next) => {
+    upload.single("document")(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message });
+      }
+      next();
+    });
+  },
+  uploadDocument
+);
 
 module.exports = router;

@@ -6,18 +6,19 @@ const signup = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // Validate input
     if (!name || !email || !password) {
       return res.status(400).json({ error: "Name, email, and password are required" });
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    if (password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    }
+
+    const existingUser = await User.findOne({ email }).lean();
     if (existingUser) {
       return res.status(400).json({ error: "User already exists" });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create new user
@@ -58,7 +59,6 @@ const login = async (req, res) => {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
-    // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });

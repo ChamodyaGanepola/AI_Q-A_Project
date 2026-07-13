@@ -1,9 +1,5 @@
-const OpenAI = require("openai");
+const { openai } = require("./openaiClient");
 const { searchKnowledgeBase } = require("./ragService");
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 async function runRagAgent(query, messages) {
 

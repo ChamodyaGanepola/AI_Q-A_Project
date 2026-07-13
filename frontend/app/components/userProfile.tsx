@@ -5,18 +5,20 @@ type Props = {
 };
 
 export default function UserProfile({ username }: Props) {
-  return (
-    <div className="flex items-center gap-3">
-      
-      {/* Avatar */}
-      <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">
-        {username.charAt(0).toUpperCase()}
-      </div>
+  const initial = username.trim().charAt(0).toUpperCase() || "U";
 
-      {/* Username */}
-      <p className="font-medium text-black">
-        {username}
-      </p>
+  return (
+    <div className="flex items-center gap-3 pb-5 border-b border-[#d5e6e3]">
+      <div
+        className="w-11 h-11 rounded-full bg-gradient-to-br from-[#14b8a6] to-[#0e7490] text-white flex items-center justify-center font-semibold text-sm tracking-wide shadow-md shadow-teal-900/15"
+        aria-hidden
+      >
+        {initial}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#0f9f8a]">Admin</p>
+        <p className="font-semibold text-[#0b1c24] truncate">{username}</p>
+      </div>
     </div>
   );
 }

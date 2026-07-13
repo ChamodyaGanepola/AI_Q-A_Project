@@ -4,10 +4,10 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import LogoutButton from "./LogoutButton";
 import UserProfile from "./userProfile";
 import { useNotification } from "./NotificationContext";
-import { API_URL } from "../lib/api";
+import { apiFetch, authHeaders } from "../lib/api";
 import TypingDots from "./TypingDots";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MessageBubble from "./MessageBubble";
+import BrandLockup from "./BrandLockup";
 
 interface Message {
   id: string;
@@ -16,98 +16,157 @@ interface Message {
   timestamp: string;
 }
 
+type HistoryResponse = {
+  chatHistory: Array<{
+    _id: string;
+    message: string;
+    reply: string;
+    createdAt: string;
+  }>;
+  hasMore: boolean;
+  error?: string;
+};
+
+type ChatResponse = {
+  reply?: string;
+  error?: string;
+};
+
+type UploadResponse = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+};
+
+function mapHistoryToMessages(
+  chatHistory: HistoryResponse["chatHistory"]
+): Message[] {
+  const mapped: Message[] = [];
+
+  for (const chat of chatHistory) {
+    const stamp = new Date(chat.createdAt).toLocaleString();
+    mapped.push({
+      id: `${chat._id}-user`,
+      role: "user",
+      content: chat.message,
+      timestamp: stamp,
+    });
+    mapped.push({
+      id: `${chat._id}-ai`,
+      role: "ai",
+      content: chat.reply,
+      timestamp: stamp,
+    });
+  }
+
+  return mapped;
+}
+
 export default function ChatBox() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState<string>("");
+  const [input, setInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const [aiTyping, setAiTyping] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const offsetRef = useRef(0);
+  const hasMoreRef = useRef(true);
+  const loadingRef = useRef(false);
 
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const { notify } = useNotification();
 
   const isAdmin = user?.role === "admin";
 
-  // ---------------- SCROLL ----------------
-  const handleScroll = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (container && container.scrollTop === 0 && hasMore && !loading) {
-      loadChatHistory(offset, true);
-    }
-  }, [hasMore, loading, offset]);
+  useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
 
   useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (container) {
-      container.addEventListener("scroll", handleScroll);
-      return () => container.removeEventListener("scroll", handleScroll);
-    }
-  }, [handleScroll]);
+    hasMoreRef.current = hasMore;
+  }, [hasMore]);
 
-  // ---------------- AUTO SCROLL ----------------
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    loadingRef.current = loading;
+  }, [loading]);
 
-  // ---------------- LOAD HISTORY ----------------
-  const loadChatHistory = async (currentOffset = 0, append = false) => {
+  const loadChatHistory = useCallback(async (currentOffset = 0, append = false) => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
     setLoading(true);
+    loadingRef.current = true;
+
+    const container = messagesContainerRef.current;
+    const previousHeight = container?.scrollHeight ?? 0;
 
     try {
-      const res = await fetch(
-        `${API_URL}/api/chat/history?limit=20&offset=${currentOffset}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+      const { ok, data } = await apiFetch<HistoryResponse>(
+        `/api/chat/history?limit=20&offset=${currentOffset}`,
+        { headers: authHeaders() }
       );
 
-      const data = await res.json();
-
-      if (res.ok) {
-        const newMessages: Message[] = [];
-
-        data.chatHistory.reverse().forEach((chat: any) => {
-          newMessages.push({
-            id: `${chat._id}-user`,
-            role: "user",
-            content: chat.message,
-            timestamp: new Date(chat.createdAt).toLocaleString(),
-          });
-
-          newMessages.push({
-            id: `${chat._id}-ai`,
-            role: "ai",
-            content: chat.reply,
-            timestamp: new Date(chat.createdAt).toLocaleString(),
-          });
-        });
+      if (ok && data.chatHistory) {
+        const newMessages = mapHistoryToMessages([...data.chatHistory].reverse());
 
         if (append) {
           setMessages((prev) => [...newMessages, ...prev]);
+          requestAnimationFrame(() => {
+            if (container) {
+              container.scrollTop = container.scrollHeight - previousHeight;
+            }
+          });
         } else {
           setMessages(newMessages);
+          shouldStickToBottomRef.current = true;
         }
 
-        setHasMore(data.hasMore);
+        setHasMore(Boolean(data.hasMore));
+        hasMoreRef.current = Boolean(data.hasMore);
         setOffset(currentOffset + 20);
+        offsetRef.current = currentOffset + 20;
       }
     } catch (err) {
       console.error("Failed to load chat history", err);
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
-  };
+  }, []);
 
-  // ---------------- INIT ----------------
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom < 80;
+
+    if (container.scrollTop <= 24 && hasMoreRef.current && !loadingRef.current) {
+      void loadChatHistory(offsetRef.current, true);
+    }
+  }, [loadChatHistory]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [handleScroll, isAdmin]);
+
+  useEffect(() => {
+    if (!shouldStickToBottomRef.current) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, aiTyping]);
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userStr = localStorage.getItem("user");
@@ -124,7 +183,7 @@ export default function ChatBox() {
       } else {
         const payload = JSON.parse(atob(token.split(".")[1]));
         setUser({
-          name: payload.name || "User",
+          name: payload.name || payload.username || "User",
           role: (payload.role || "User").toLowerCase(),
         });
       }
@@ -132,16 +191,13 @@ export default function ChatBox() {
       console.error(err);
     }
 
-    loadChatHistory();
-  }, []);
+    void loadChatHistory();
+  }, [loadChatHistory]);
 
-  // ---------------- SEND MESSAGE ----------------
   const sendMessage = async () => {
-    const token = localStorage.getItem("token");
-    if (!input.trim()) return;
+    if (!input.trim() || aiTyping) return;
 
-    const currentInput = input;
-
+    const currentInput = input.trim();
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -149,150 +205,193 @@ export default function ChatBox() {
       timestamp: new Date().toLocaleString(),
     };
 
+    shouldStickToBottomRef.current = true;
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
-
     setAiTyping(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/chat`, {
+      const { ok, data } = await apiFetch<ChatResponse>("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ message: currentInput }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         notify(data.error || "Failed", "error");
         return;
       }
 
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
-        role: "ai",
-        content: data.reply,
-        timestamp: new Date().toLocaleString(),
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `ai-${Date.now()}`,
+          role: "ai",
+          content: data.reply || "",
+          timestamp: new Date().toLocaleString(),
+        },
+      ]);
+    } catch {
       notify("Error sending message", "error");
     } finally {
       setAiTyping(false);
     }
   };
 
-  // ---------------- UPLOAD ----------------
   const uploadDocument = async () => {
     if (!file) {
       setStatus("Select a file before uploading.");
       return;
     }
 
-    const token = localStorage.getItem("token");
+    setUploading(true);
+    setStatus("Uploading…");
 
     const formData = new FormData();
     formData.append("document", file);
 
-    const res = await fetch(`${API_URL}/api/chat/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
+    try {
+      const { ok, data } = await apiFetch<UploadResponse>("/api/chat/upload", {
+        method: "POST",
+        headers: authHeaders(),
+        body: formData,
+      });
 
-    const data = await res.json();
-
-    if (res.ok) {
-      setStatus("Document uploaded successfully.");
-      notify("Uploaded successfully", "success");
-    } else {
-      setStatus(data.error || "Upload failed");
+      if (ok) {
+        setStatus("Document uploaded successfully.");
+        notify("Uploaded successfully", "success");
+        setFile(null);
+      } else {
+        setStatus(data.error || "Upload failed");
+        notify("Upload failed", "error");
+      }
+    } catch {
+      setStatus("Upload failed");
       notify("Upload failed", "error");
+    } finally {
+      setUploading(false);
     }
   };
 
-  // =====================================================
-  // UI (FIXED - NO REMOUNT BUG)
-  // =====================================================
+  const canSend = input.trim().length > 0 && !aiTyping;
+
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl h-[85vh] bg-white rounded-2xl flex flex-col overflow-hidden">
-
-        {/* HEADER */}
-        <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
-          <div>
-            <h1 className="text-2xl font-bold text-black">
-              {isAdmin ? "Admin Upload" : "AI Chat"}
-            </h1>
-            <p className="text-sm text-gray-600">
-              Logged in as {user?.role}
-            </p>
+    <div className="app-shell">
+      <div className="panel w-full max-w-4xl h-[min(85dvh,900px)] flex flex-col overflow-hidden">
+        <header className="flex justify-between items-center gap-4 px-5 sm:px-6 py-4 border-b border-[#d5e6e3] bg-gradient-to-r from-[#f3fbf9] to-[#eef7fb]">
+          <div className="min-w-0">
+            <BrandLockup
+              compact
+              subtitle={
+                isAdmin
+                  ? "Admin · knowledge base upload"
+                  : user
+                    ? `${user.name} · ${user.role}`
+                    : "Loading session…"
+              }
+            />
+            <h1 className="sr-only">{isAdmin ? "Admin Upload" : "AI Chat"}</h1>
           </div>
-
           <LogoutButton />
-        </div>
+        </header>
 
-        {/* BODY */}
         {isAdmin ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="w-full max-w-2xl bg-white rounded-2xl p-8 shadow">
+          <div className="flex-1 flex items-center justify-center p-5 sm:p-8 bg-[var(--surface-chat)]">
+            <div className="w-full max-w-lg bg-white rounded-2xl border border-[#d5e6e3] p-6 sm:p-8 shadow-sm">
               <UserProfile username={user?.name || "User"} />
 
-              <input
-                type="file"
-                accept=".pdf,.docx"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
+              <div className="mt-6 space-y-3">
+                <h2 className="text-base font-semibold text-[#0b1c24]">Upload document</h2>
+                <p className="text-sm text-[#5b737c]">
+                  Add a PDF or DOCX file to expand the knowledge base.
+                </p>
 
-              <button
-                onClick={uploadDocument}
-                className="bg-black text-white px-4 py-2 rounded-xl mt-4"
-              >
-                Upload Document
-              </button>
+                <label className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#9ec9c1] bg-[#f0faf8] px-4 py-8 cursor-pointer hover:border-[#0f9f8a] hover:bg-[#e6f7f3] transition-colors">
+                  <span className="text-sm font-medium text-[#0b3d4a]">
+                    {file ? file.name : "Choose a PDF or DOCX file"}
+                  </span>
+                  <span className="text-xs text-[#5b737c]">Click to browse</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx"
+                    className="sr-only"
+                    onChange={(e) => {
+                      setFile(e.target.files?.[0] ?? null);
+                      setStatus("");
+                    }}
+                  />
+                </label>
 
-              {status && <p className="text-sm mt-2">{status}</p>}
+                <button
+                  type="button"
+                  onClick={uploadDocument}
+                  disabled={uploading || !file}
+                  className="btn btn-primary w-full"
+                >
+                  {uploading ? "Uploading…" : "Upload Document"}
+                </button>
+
+                {status && (
+                  <p
+                    className={`text-sm ${
+                      status.toLowerCase().includes("success")
+                        ? "text-emerald-600"
+                        : status.toLowerCase().includes("fail") ||
+                            status.toLowerCase().includes("select")
+                          ? "text-rose-600"
+                          : "text-[#5b737c]"
+                    }`}
+                    role="status"
+                  >
+                    {status}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         ) : (
           <>
-            {/* CHAT */}
             <div
               ref={messagesContainerRef}
-              className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-100"
+              className="chat-scroll flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[var(--surface-chat)]"
+              aria-live="polite"
             >
               {loading && messages.length === 0 && (
-                <p className="text-center">Loading...</p>
+                <div className="flex flex-col items-center justify-center h-full gap-2 text-[#5b737c]">
+                  <div className="flex gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#14b8a6] loading-dot" />
+                    <span className="w-2 h-2 rounded-full bg-[#14b8a6] loading-dot [animation-delay:0.2s]" />
+                    <span className="w-2 h-2 rounded-full bg-[#14b8a6] loading-dot [animation-delay:0.4s]" />
+                  </div>
+                  <p className="text-sm">Loading conversation…</p>
+                </div>
+              )}
+
+              {!loading && messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                  <div className="brand-mark mb-3" aria-hidden>
+                    Q
+                  </div>
+                  <p className="text-lg font-semibold text-[#0b1c24]">Ask anything</p>
+                  <p className="text-sm text-[#5b737c] mt-1 max-w-sm">
+                    Try document questions or currency conversions like “Convert 100 USD to LKR”.
+                  </p>
+                </div>
+              )}
+
+              {loading && messages.length > 0 && (
+                <p className="text-center text-xs text-[#5b737c] py-1">
+                  Loading earlier messages…
+                </p>
               )}
 
               {messages.map((m) => (
-                <div
+                <MessageBubble
                   key={m.id}
-                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                >
-                  <div className="max-w-[70%]">
-                    <div
-                      className={`px-4 py-3 rounded-2xl text-sm shadow ${m.role === "user"
-                          ? "bg-black text-white"
-                          : "bg-white text-black"
-                        }`}
-                    >
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {m.content}
-                      </ReactMarkdown>
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      {m.timestamp}
-                    </span>
-                  </div>
-                </div>
+                  role={m.role}
+                  content={m.content}
+                  timestamp={m.timestamp}
+                />
               ))}
 
               {aiTyping && (
@@ -304,27 +403,45 @@ export default function ChatBox() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* INPUT */}
-            <div className="p-4 border-t bg-white flex gap-3">
-              <input
-                className="flex-1 border rounded-xl px-4 py-3 text-black"
-                value={input ?? ""}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type message..."
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    sendMessage();
-                  }
-                }}
-              />
-
-              <button
-                onClick={sendMessage}
-                className="bg-black text-white px-6 rounded-xl"
-              >
-                Send
-              </button>
-            </div>
+            <form
+              className="p-3 sm:p-4 border-t border-[#d5e6e3] bg-white"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void sendMessage();
+              }}
+            >
+              <div className="flex gap-2 sm:gap-3 items-end">
+                <label className="sr-only" htmlFor="chat-input">
+                  Message
+                </label>
+                <textarea
+                  id="chat-input"
+                  rows={1}
+                  className="field flex-1 resize-none min-h-[48px] max-h-32 py-3"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask about documents or currency…"
+                  disabled={aiTyping}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void sendMessage();
+                    }
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={!canSend}
+                  className="btn btn-primary px-5 sm:px-6 h-12 shrink-0"
+                  aria-label="Send message"
+                >
+                  Send
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-[#8aa0a8] hidden sm:block">
+                Press Enter to send · Shift+Enter for a new line
+              </p>
+            </form>
           </>
         )}
       </div>

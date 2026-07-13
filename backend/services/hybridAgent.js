@@ -1,14 +1,10 @@
-const OpenAI = require("openai");
+const { openai } = require("./openaiClient");
 const { searchKnowledgeBase } = require("./ragService");
 
 const {
   convertCurrency,
   convertHistoricalCurrency,
 } = require("./currencyService");
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 async function runHybridAgent(
   { ragQuery, currencyQuery },

@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useNotification } from "../components/NotificationContext";
+import { apiFetch } from "../lib/api";
+import BrandLockup from "../components/BrandLockup";
+
+type AuthResponse = {
+  token?: string;
+  user?: { id: string; name: string; email: string; role: string };
+  error?: string;
+  message?: string;
+};
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -13,13 +22,15 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState("User");
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const { notify } = useNotification();
 
   const signup = async () => {
+    if (loading) return;
+
     setError("");
 
-    // Validation
     if (!name || !email || !password || !confirmPassword) {
       setError("All fields are required");
       return;
@@ -37,108 +48,167 @@ export default function SignupPage() {
 
     setLoading(true);
 
-    const res = await fetch("http://localhost:5000/api/auth/signup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name, email, password, role }),
-    });
+    try {
+      const { data } = await apiFetch<AuthResponse>("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password, role }),
+      });
 
-    const data = await res.json();
-
-    if (data.token && data.user) {
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-      notify("Signup successful", "success");
-      router.push("/chat");
-    } else {
-      const errorMessage = data.error || data.message || "Signup failed";
+      if (data.token && data.user) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        notify("Signup successful", "success");
+        router.push("/chat");
+      } else {
+        const errorMessage = data.error || data.message || "Signup failed";
+        setError(errorMessage);
+        notify(errorMessage, "error");
+      }
+    } catch {
+      const errorMessage = "Unable to reach the server";
       setError(errorMessage);
       notify(errorMessage, "error");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      signup();
-    }
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void signup();
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      {/* Signup Card */}
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
-        {/* Title */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-black">Create Account</h1>
-          <p className="text-gray-500 mt-2">Sign up to get started</p>
+    <div className="app-shell">
+      <div className="panel w-full max-w-md p-7 sm:p-8">
+        <div className="mb-8">
+          <BrandLockup subtitle="Create an account to ask document and currency questions." />
+          <h1 className="mt-6 text-2xl font-semibold tracking-tight text-[#0b1c24]">
+            Create account
+          </h1>
+          <p className="text-[#5b737c] mt-1.5 text-sm leading-relaxed">
+            Sign up to get started in seconds.
+          </p>
         </div>
 
-        {/* Inputs */}
-        <div className="flex flex-col gap-4">
-          <input
-            className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
-            placeholder="Enter your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+          <div>
+            <label className="label" htmlFor="signup-name">
+              Name
+            </label>
+            <input
+              id="signup-name"
+              className="field"
+              placeholder="Your name"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
 
-          <input
-            className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
-            placeholder="Enter email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <select
-  className="border border-gray-300 rounded-xl px-4 py-3 text-black"
-  value={role}
-  onChange={(e) => setRole(e.target.value)}
->
-  <option value="User">User</option>
-  <option value="Admin">Admin</option>
-</select>
+          <div>
+            <label className="label" htmlFor="signup-email">
+              Email
+            </label>
+            <input
+              id="signup-email"
+              className="field"
+              placeholder="you@example.com"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
 
-          <input
-            className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
-            type="password"
-            placeholder="Enter password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyPress={handleKeyPress}
-          />
+          <div>
+            <label className="label" htmlFor="signup-role">
+              Role
+            </label>
+            <select
+              id="signup-role"
+              className="field"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              disabled={loading}
+            >
+              <option value="User">User</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </div>
 
-          <input
-            className="border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-black text-black"
-            type="password"
-            placeholder="Confirm password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            onKeyPress={handleKeyPress}
-          />
+          <div>
+            <label className="label" htmlFor="signup-password">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="signup-password"
+                className="field pr-16"
+                type={showPassword ? "text" : "password"}
+                placeholder="At least 6 characters"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#0f9f8a] hover:text-[#0a6e60] px-2 py-1 rounded-md"
+                onClick={() => setShowPassword((v) => !v)}
+                tabIndex={-1}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
 
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <div>
+            <label className="label" htmlFor="signup-confirm">
+              Confirm password
+            </label>
+            <input
+              id="signup-confirm"
+              className="field"
+              type={showPassword ? "text" : "password"}
+              placeholder="Re-enter password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
 
-          <button
-            onClick={signup}
-            disabled={loading}
-            className="bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition font-medium disabled:opacity-50"
-          >
-            {loading ? "Creating account..." : "Sign Up"}
+          {error && (
+            <p
+              className="text-rose-700 text-sm bg-rose-50 border border-rose-100 rounded-xl px-3 py-2"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
+
+          <button type="submit" disabled={loading} className="btn btn-primary mt-1">
+            {loading ? "Creating account…" : "Sign up"}
           </button>
 
-          <div className="text-center mt-4">
-            <p className="text-gray-600 text-sm">
-              Already have an account?{" "}
-              <Link href="/login" className="text-black font-semibold hover:underline">
-                Login
-              </Link>
-            </p>
-          </div>
-        </div>
+          <p className="text-center text-sm text-[#5b737c] mt-2">
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              className="text-[#0a6e60] font-semibold hover:underline underline-offset-2"
+            >
+              Sign in
+            </Link>
+          </p>
+        </form>
       </div>
     </div>
   );

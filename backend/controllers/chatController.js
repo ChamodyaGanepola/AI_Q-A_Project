@@ -1,48 +1,58 @@
 const Chat = require("../models/chatModel");
 const { runSystem } = require("../services/systemAgent");
 
+const GREETING_RE = /^(hi|hello|hey)\b/i;
+const HOW_ARE_YOU_RE = /how are you/i;
+const THANKS_RE = /thank you|thanks/i;
+const WHO_RE = /who are you/i;
 
+const isGreeting = (text) => GREETING_RE.test(text.trim());
 
-const isGreeting = (text) =>
-  /^(hi|hello|hey)\b/i.test(text.trim());
+function greetingReply(message) {
+  if (HOW_ARE_YOU_RE.test(message)) {
+    return "I'm doing well! How can I help you today?";
+  }
+  if (THANKS_RE.test(message)) {
+    return "You're welcome!";
+  }
+  if (WHO_RE.test(message)) {
+    return "I'm your AI assistant. I can help with documents, currency conversions, and more.";
+  }
+  return "Hello! How can I help you today?";
+}
 
 const chat = async (req, res) => {
   try {
     const { message } = req.body;
     const userId = req.user.userId;
 
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+
+    const trimmed = message.trim();
+
     const history = await Chat.find({ userId })
       .sort({ createdAt: -1 })
-      .limit(10);
+      .limit(10)
+      .select("message reply")
+      .lean();
 
     const messages = [
       ...history.reverse().flatMap((c) => [
         { role: "user", content: c.message },
         { role: "assistant", content: c.reply },
       ]),
-      { role: "user", content: message },
+      { role: "user", content: trimmed },
     ];
 
-    if (isGreeting(message)) {
-      let reply = "Hello! How can I help you today?";
-
-      if (/how are you/i.test(message)) {
-        reply = "I'm doing well! How can I help you today?";
-      }
-
-      if (/thank you|thanks/i.test(message)) {
-        reply = "You're welcome!";
-      }
-
-      if (/who are you/i.test(message)) {
-        reply =
-          "I'm your AI assistant. I can help with documents, currency conversions, and more.";
-      }
-      await Chat.create({ userId, message, reply });
+    if (isGreeting(trimmed)) {
+      const reply = greetingReply(trimmed);
+      await Chat.create({ userId, message: trimmed, reply });
       return res.json({ reply });
     }
 
-    const rawReply = await runSystem(message, messages);
+    const rawReply = await runSystem(trimmed, messages);
 
     const normalizedReply =
       typeof rawReply === "string"
@@ -51,7 +61,7 @@ const chat = async (req, res) => {
 
     await Chat.create({
       userId,
-      message,
+      message: trimmed,
       reply: normalizedReply,
     });
 
@@ -62,9 +72,6 @@ const chat = async (req, res) => {
   }
 };
 
-
-
-
 const getChatHistory = async (req, res) => {
   try {
     const userId = req.user?.userId;
@@ -73,14 +80,18 @@ const getChatHistory = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-    const chatHistory = await Chat.find({ userId })
-      .sort({ createdAt: -1 })
-      .skip(offset)
-      .limit(limit);
-    const totalCount = await Chat.countDocuments({ userId });
+    const [chatHistory, totalCount] = await Promise.all([
+      Chat.find({ userId })
+        .sort({ createdAt: -1 })
+        .skip(offset)
+        .limit(limit)
+        .select("message reply createdAt")
+        .lean(),
+      Chat.countDocuments({ userId }),
+    ]);
 
     res.json({
       chatHistory,
@@ -93,4 +104,29 @@ const getChatHistory = async (req, res) => {
   }
 };
 
-module.exports = { chat, getChatHistory };
+const uploadDocument = async (req, res) => {
+  try {
+    if (req.user.role?.toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const { processDocument } = require("../services/documentService");
+    const result = await processDocument(file.path, file.originalname);
+
+    res.json({
+      success: true,
+      message: "Document processed and stored",
+      ...result,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to process document" });
+  }
+};
+
+module.exports = { chat, getChatHistory, uploadDocument };
